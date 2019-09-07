@@ -66,12 +66,16 @@ def seasons_parser(url, custom_seasons):
     tv_series = soup.title.text.strip()
     seasons_objs = soup.select('div[class="seasonconts"] div[class="season"] a')
     if custom_seasons:
-        seasons = {season.text.strip(): None for season in seasons_objs if season.text.strip() in custom_seasons}
+        seasons = {season.text.strip(): None for season in seasons_objs
+                   if season.text.strip() in custom_seasons}
     else:
         seasons = {season.text.strip(): None for season in seasons_objs}
     for season in seasons.keys():
         selector = 'div[id="myTabContent"] div[id={}] a'.format('\"'+season+'\"')
-        episodes = {re.search(r'.*ep\s*(\d+)\s*', episode.text, flags=re.IGNORECASE).group(1): episode.get('href') for episode in soup.select(selector)}
+        episodes = {
+            re.search(r'.*ep\s*(\d+)\s*', episode.text,
+                      flags=re.IGNORECASE).group(1): episode.get('href')
+            for episode in soup.select(selector)}
         seasons[season] = episodes
     return seasons, tv_series
 
@@ -127,7 +131,8 @@ if __name__ == '__main__':
                     link, subs, _ = single_link(episode_url, args.highest, args.subtitle, args.res)
                     season_path = os.path.join(
                         downloads_path, tv_series, season)
-                    print('Starting %s download to %s' % ('S'+season+' - E'+episode_num, season_path))
+                    print('Starting %s download to %s' % (
+                        'S'+season+' - E'+episode_num, season_path))
                     urls_list.append(link)
                     urls_list.append(f'  dir={season_path}')
                     urls_list.append(f'  out={episode_num}.mp4')
