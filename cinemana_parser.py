@@ -1,10 +1,11 @@
+#! /usr/bin/env python3
 import os
-import argparse
-from bs4 import BeautifulSoup
-import requests
 import re
-import subprocess
 import pipes
+import argparse
+import requests
+import subprocess
+from bs4 import BeautifulSoup
 
 
 def parser():
@@ -24,6 +25,8 @@ def parser():
     parser.add_argument('--season', dest='custom_seasons', action='append',
                         help='specify the season number you want to download,'
                         ' repeat for more than one')
+    parser.add_argument('--after',
+                        help='only episodes after this')
     parser.add_argument('--concurrent-downloads', default=3,
                         help='pass concurrent downloads option to aria2c')
     parser.add_argument(dest='urls', metavar='URLs', nargs='+',
@@ -35,6 +38,8 @@ def single_link(url, highest, subtitle, resolution):
     page = requests.get(url)
     soup = BeautifulSoup(page.text, 'html.parser')
     movie_name = soup.title.text.strip()
+    movie_year = soup.select('ul[class="c-list b-btm sp-b-20"] span[class="value"]')[1].text.strip()[:4]
+    print(movie_year)
     links_dict = dict()
     for link in soup.findAll(class_='mp4'):
         links_dict[link.get('data-res')] = link.get('src')
@@ -56,7 +61,7 @@ def single_link(url, highest, subtitle, resolution):
         for sub in soup.findAll(kind='captions'):
             subtitles[sub.get('srclang')] = sub.get('src')
 
-    return links_dict[list(links_dict.keys())[res-1]], subtitles, movie_name
+    return links_dict[list(links_dict.keys())[res-1]], subtitles, movie_name, movie_year
 
 
 def seasons_parser(url, custom_seasons):
@@ -102,13 +107,13 @@ if __name__ == '__main__':
     urls_list = []
     if args.movie:
         for url in args.urls:
-            link, subs, movie_name = single_link(
+            link, subs, movie_name, movie_year = single_link(
                 url, args.highest, args.subtitle, args.res)
             print('Starting %s download to %s' %
                   (movie_name, downloads_path+movie_name))
             urls_list.append(link)
-            urls_list.append(f'  dir={downloads_path+movie_name}')
-            urls_list.append(f'  out={movie_name}.mp4')
+            urls_list.append(f'  dir={downloads_path+movie_name} ({movie_year})')
+            urls_list.append(f'  out={movie_name} ({movie_year}).mp4')
             # single_download(link,
             #                 path=downloads_path + movie_name,
             #                 name=movie_name)
@@ -117,17 +122,23 @@ if __name__ == '__main__':
                       (lang, movie_name))
                 urls_list.append(sub)
                 urls_list.append(f'  dir={downloads_path+movie_name}')
-                urls_list.append(f'  out={movie_name+lang.strip()}.vtt')
+                urls_list.append(f'  out={movie_name} ({movie_year}){lang.strip()}.vtt')
                 urls_list.append('  split=1')
     else:
+        if args.after is None:
+            args.after = 0
+        else:
+            args.after = int(args.after)
         for url in args.urls:
             seasons, tv_series = seasons_parser(url, args.custom_seasons)
             print('The following will be downloaded')
             for season, episodes in seasons.items():
                 print('Season:', season)
-                print('  Episodes:', ', '.join(list(episodes.keys())))
+                print('  Episodes:', ', '.join(ep for ep in episodes.keys() if int(ep) > args.after))
             for season, episodes in seasons.items():
                 for episode_num, episode_url in episodes.items():
+                    if not int(episode_num) > args.after:
+                        continue
                     link, subs, _ = single_link(episode_url, args.highest, args.subtitle, args.res)
                     season_path = os.path.join(
                         downloads_path, tv_series, season)
